@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# usage: bin/compile <build_dir> <cache_dir> <env_dir>
+
+set -eo pipefail
+
+if [ -n "${BUILDPACK_DEBUG}" ]; then
+    set -x
+fi
+
+readonly BUILD_DIR="${1:-}"
+readonly CACHE_DIR="${2:-}"
+readonly ENV_DIR="${3:-}"
+
+readonly BASE_DIR="$( cd -P "$( dirname "${0}" )" && pwd )"
+readonly BUILDPACK_DIR="$( readlink -f "${BASE_DIR}/.." )"
+
+readonly tmp_dir="/tmp/krakend"
+
+readonly krakend_version="${KRAKEND_VERSION:-2.6.2}"
+
+
+get_krakend "${BUILD_DIR}" "${CACHE_DIR}" "${krakend_version}"
+
+
+# Retrieves Krakend pre-compiled binary, either by fetching it from the cache
+# or by downloading it. Ensures krakend binary is present in the build dir.
+#
+# Usage: get_krakend <build_dir> <cache_dir> <version>
+#
+get_krakend() {
+    local build_dir="${1}"
+    local cache_dir="${2}"
+    local version="${3}"
+
+    local archive_name="krakend_${version}.tar.gz"
+    local url="https://repo.krakend.io/bin/krakend_${version}_amd64_generic-linux.tar.gz"
+    local cache_file="${cache_dir}/${archive_name}"
+
+    if [ ! -f "${cache_file}" ]; then
+        echo "---> Downloading Krakend ${version}"
+        curl --retry 3 --silent --location "${url}" --output "${cache_file}"
+    else
+        echo "---> Retrieving Krakend ${version} from cache"
+    fi
+
+    echo "---> Extracting binary"
+    tar --extract --file="${cache_file}" \
+        --directory="${build_dir}" \
+        --strip-components=3 \
+        ./usr/bin/krakend
+}
